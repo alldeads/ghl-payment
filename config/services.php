@@ -35,4 +35,25 @@ return [
         ],
     ],
 
+    'ghl' => [
+        'app_id' => env('GHL_APP_ID'),
+        'client_id' => env('GHL_CLIENT_ID'),
+        'client_secret' => env('GHL_CLIENT_SECRET'),
+        'redirect_uri' => env('GHL_REDIRECT_URI'),
+        'scopes' => env('GHL_SCOPES', 'contacts.readonly contacts.write locations.readonly opportunities.readonly opportunities.write calendars.readonly calendars.write users.readonly workflows.readonly'),
+        'oauth_base_url' => env('GHL_OAUTH_BASE_URL', 'https://marketplace.gohighlevel.com'),
+        'api_base_url' => env('GHL_API_BASE_URL', 'https://services.leadconnectorhq.com'),
+        'webhook_secret' => env('GHL_WEBHOOK_SECRET'),
+    ],
+
+    'xendit' => [
+        'secret_key' => env('XENDIT_SECRET_KEY'),
+        'public_key' => env('XENDIT_PUBLIC_KEY'),
+        'callback_token' => env('XENDIT_CALLBACK_TOKEN'),
+        'api_base_url' => env('XENDIT_API_BASE_URL', 'https://api.xendit.co'),
+        'invoice_duration_seconds' => (int) env('XENDIT_INVOICE_DURATION_SECONDS', 86400),
+        'success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', env('APP_URL').'/ghl/dashboard'),
+        'failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL', env('APP_URL').'/ghl/dashboard'),
+    ],
+
 ];
