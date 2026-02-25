@@ -15,9 +15,6 @@
         .value { margin-bottom: 10px; }
         input, textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
         button { padding: 10px 14px; border-radius: 6px; border: 0; background: #111827; color: #fff; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 14px; text-align: left; }
-        pre { background: #f9fafb; border: 1px solid #e5e7eb; padding: 10px; border-radius: 6px; white-space: pre-wrap; }
     </style>
 </head>
 <body>
@@ -72,36 +69,7 @@
             <button type="submit">Create Invoice</button>
         </form>
 
-        @if(isset($payments) && $payments->count() > 0)
-            <hr>
-            <h3>Recent Payments</h3>
-            <table>
-                <thead>
-                <tr>
-                    <th>External ID</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Invoice URL</th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach($payments as $payment)
-                    <tr>
-                        <td>{{ $payment->external_id }}</td>
-                        <td>{{ $payment->currency }} {{ number_format((float) $payment->amount, 0) }}</td>
-                        <td>{{ $payment->status }}</td>
-                        <td>
-                            @if($payment->invoice_url)
-                                <a href="{{ $payment->invoice_url }}" target="_blank" rel="noopener noreferrer">Open</a>
-                            @else
-                                -
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        @endif
+        <p><a href="{{ route('xendit.test') }}">View transactions directly from Xendit</a></p>
     </div>
 @else
     <div class="box">

@@ -15,6 +15,7 @@
         button { background: #111827; color: #fff; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; margin-top: 16px; }
         th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 14px; }
+        .action-link { display: inline-block; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; text-decoration: none; color: #111827; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -53,64 +54,41 @@
             <button type="submit">Create Xendit Invoice</button>
         </form>
     </div>
-
-    <div class="card">
-        <h3>Simulate Webhook</h3>
-        <form method="POST" action="{{ route('xendit.test.simulate-webhook') }}">
-            @csrf
-
-            <label for="invoice_id">Invoice ID (optional)</label>
-            <input id="invoice_id" name="invoice_id" type="text" placeholder="inv-123">
-
-            <label for="external_id">External ID (optional)</label>
-            <input id="external_id" name="external_id" type="text" placeholder="ghl-loc-123-uuid">
-
-            <label for="status">Status</label>
-            <select id="status" name="status" required>
-                <option value="PENDING">PENDING</option>
-                <option value="PAID">PAID</option>
-                <option value="SETTLED">SETTLED</option>
-                <option value="EXPIRED">EXPIRED</option>
-                <option value="FAILED">FAILED</option>
-            </select>
-
-            <label for="invoice_url">Invoice URL (optional)</label>
-            <input id="invoice_url" name="invoice_url" type="url" placeholder="https://checkout.xendit.co/...">
-
-            <button type="submit">Apply Webhook Simulation</button>
-        </form>
-    </div>
 </div>
 
 <div class="card" style="margin-top:16px;">
-    <h3>Recent Payments</h3>
-    @if($payments->isEmpty())
-        <p>No payments yet.</p>
+    <h3>Recent Xendit Transactions</h3>
+    @if(empty($transactions))
+        <p>No transactions found or unable to fetch from Xendit.</p>
     @else
         <table>
             <thead>
             <tr>
-                <th>ID</th>
-                <th>Location</th>
-                <th>External ID</th>
                 <th>Invoice ID</th>
+                <th>External ID</th>
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Invoice URL</th>
+                <th>Action</th>
             </tr>
             </thead>
             <tbody>
-            @foreach($payments as $payment)
+            @foreach($transactions as $transaction)
                 <tr>
-                    <td>{{ $payment->id }}</td>
-                    <td>{{ $payment->location_id }}</td>
-                    <td>{{ $payment->external_id }}</td>
-                    <td>{{ $payment->xendit_invoice_id ?? '-' }}</td>
-                    <td>{{ $payment->currency }} {{ number_format((float) $payment->amount, 0) }}</td>
-                    <td>{{ $payment->status }}</td>
+                    <td>{{ $transaction['id'] ?? '-' }}</td>
+                    <td>{{ $transaction['external_id'] ?? '-' }}</td>
+                    <td>{{ ($transaction['currency'] ?? 'IDR') }} {{ number_format((float) ($transaction['amount'] ?? 0), 0) }}</td>
+                    <td>{{ $transaction['status'] ?? '-' }}</td>
                     <td>
-                        @if($payment->invoice_url)
-                            <a href="{{ $payment->invoice_url }}" target="_blank" rel="noopener noreferrer">Open</a>
+                        @if(!empty($transaction['invoice_url']))
+                            <a href="{{ $transaction['invoice_url'] }}" target="_blank" rel="noopener noreferrer">Open</a>
+                        @else
+                            -
+                        @endif
+                    </td>
+                    <td>
+                        @if(!empty($transaction['id']))
+                            <a class="action-link" href="{{ route('xendit.test.checkout', ['invoiceId' => $transaction['id']]) }}">Card Checkout</a>
                         @else
                             -
                         @endif

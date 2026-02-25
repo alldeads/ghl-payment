@@ -7,6 +7,16 @@ use Illuminate\Support\Facades\Http;
 
 class XenditService
 {
+    private function client()
+    {
+        $baseUrl = rtrim((string) config('services.xendit.api_base_url'), '/');
+        $secretKey = (string) config('services.xendit.secret_key');
+
+        return Http::baseUrl($baseUrl)
+            ->withBasicAuth($secretKey, '')
+            ->acceptJson();
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -15,13 +25,58 @@ class XenditService
      */
     public function createInvoice(array $payload): array
     {
-        $baseUrl = rtrim((string) config('services.xendit.api_base_url'), '/');
-        $secretKey = (string) config('services.xendit.secret_key');
-
-        return Http::baseUrl($baseUrl)
-            ->withBasicAuth($secretKey, '')
-            ->acceptJson()
+        return $this->client()
             ->post('/v2/invoices', $payload)
+            ->throw()
+            ->json();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function listInvoices(int $limit = 20): array
+    {
+        $response = $this->client()
+            ->get('/v2/invoices', [
+                'limit' => max(1, min($limit, 100)),
+            ])
+            ->throw()
+            ->json();
+
+        return is_array($response) ? $response : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getInvoice(string $invoiceId): array
+    {
+        return $this->client()
+            ->get('/v2/invoices/'.urlencode($invoiceId))
+            ->throw()
+            ->json();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function chargeCard(array $payload): array
+    {
+        return $this->client()
+            ->post('/credit_card_charges', $payload)
+            ->throw()
+            ->json();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function chargeEwallet(array $payload): array
+    {
+        return $this->client()
+            ->post('/ewallets/charges', $payload)
             ->throw()
             ->json();
     }

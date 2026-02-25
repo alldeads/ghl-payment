@@ -13,13 +13,28 @@ class XenditGatewayTest extends TestCase
 
     public function test_xendit_test_page_is_accessible(): void
     {
+        config()->set('services.xendit.secret_key', 'xnd_development_key');
+        config()->set('services.xendit.api_base_url', 'https://api.xendit.co');
+
+        Http::fake([
+            'https://api.xendit.co/v2/invoices*' => Http::response([
+                [
+                    'id' => 'inv-list-1',
+                    'external_id' => 'ext-list-1',
+                    'amount' => 10000,
+                    'currency' => 'IDR',
+                    'status' => 'PENDING',
+                ],
+            ], 200),
+        ]);
+
         $response = $this->get('/xendit/test');
 
         $response->assertOk();
-        $response->assertSee('Xendit Payment Test Page');
+        $response->assertSee('Xendivel Checkout Example');
     }
 
-    public function test_can_create_xendit_invoice_and_store_payment_record(): void
+    public function test_can_create_xendit_invoice_from_api_flow(): void
     {
         config()->set('services.xendit.secret_key', 'xnd_development_key');
         config()->set('services.xendit.api_base_url', 'https://api.xendit.co');
@@ -43,13 +58,7 @@ class XenditGatewayTest extends TestCase
         $response->assertStatus(201);
         $response->assertJsonPath('ok', true);
         $response->assertJsonPath('status', 'PENDING');
-
-        $this->assertDatabaseHas('xendit_payments', [
-            'location_id' => 'loc-123',
-            'xendit_invoice_id' => 'inv-123',
-            'status' => 'PENDING',
-            'currency' => 'IDR',
-        ]);
+        $response->assertJsonPath('xendit_invoice_id', 'inv-123');
     }
 
     public function test_xendit_webhook_requires_valid_callback_token(): void
@@ -99,29 +108,35 @@ class XenditGatewayTest extends TestCase
         $this->assertIsArray($payment->last_webhook_payload);
     }
 
-    public function test_simulate_webhook_updates_payment_status_from_test_page(): void
+    public function test_simulated_checkout_page_is_accessible(): void
     {
-        $payment = XenditPayment::query()->create([
-            'location_id' => 'loc-456',
-            'external_id' => 'ghl-loc-456-uuid',
-            'xendit_invoice_id' => 'inv-456',
-            'status' => 'PENDING',
+        $response = $this->get('/xendit/test/checkout/inv-789');
+
+        $response->assertOk();
+        $response->assertSee('Xendivel Checkout Example');
+    }
+
+    public function test_native_pay_with_card_endpoint_returns_api_response(): void
+    {
+        config()->set('services.xendit.secret_key', 'xnd_development_key');
+        config()->set('services.xendit.api_base_url', 'https://api.xendit.co');
+
+        Http::fake([
+            'https://api.xendit.co/credit_card_charges' => Http::response([
+                'status' => 'CAPTURED',
+                'id' => 'cc-charge-1',
+            ], 200),
+        ]);
+
+        $response = $this->postJson('/pay-with-card', [
+            'amount' => 250000,
+            'token_id' => 'tok_123',
+            'authentication_id' => 'auth_123',
             'currency' => 'IDR',
-            'amount' => 200000,
+            'external_id' => 'ghl-loc-999-uuid',
         ]);
 
-        $response = $this->post('/xendit/test/simulate-webhook', [
-            'invoice_id' => 'inv-456',
-            'status' => 'PAID',
-            'invoice_url' => 'https://checkout.xendit.co/inv-456',
-        ]);
-
-        $response->assertRedirect('/xendit/test');
-
-        $payment->refresh();
-
-        $this->assertSame('PAID', $payment->status);
-        $this->assertSame('https://checkout.xendit.co/inv-456', $payment->invoice_url);
-        $this->assertIsArray($payment->last_webhook_payload);
+        $response->assertOk();
+        $response->assertJsonPath('status', 'CAPTURED');
     }
 }

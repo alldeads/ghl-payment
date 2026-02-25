@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\XenditPayment;
 use App\Services\XenditService;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,8 +19,16 @@ class XenditPaymentController extends Controller
 
     public function testPage(): View
     {
+        $transactions = [];
+
+        try {
+            $transactions = $this->xenditService->listInvoices(20);
+        } catch (Throwable) {
+            $transactions = [];
+        }
+
         return view('xendit.test', [
-            'payments' => XenditPayment::query()->latest()->limit(20)->get(),
+            'transactions' => $transactions,
         ]);
     }
 
@@ -40,7 +48,7 @@ class XenditPaymentController extends Controller
         $payload = [
             'external_id' => $externalId,
             'amount' => (float) $validated['amount'],
-            'currency' => strtoupper((string) ($validated['currency'] ?? 'IDR')),
+            'currency' => strtoupper((string) ($validated['currency'] ?? 'PHP')),
             'payer_email' => $validated['payer_email'] ?? null,
             'description' => $validated['description'] ?? 'Invoice from GHL Xendit gateway',
             'success_redirect_url' => config('services.xendit.success_redirect_url'),
@@ -56,22 +64,9 @@ class XenditPaymentController extends Controller
         try {
             $invoice = $this->xenditService->createInvoice($payload);
 
-            $payment = XenditPayment::query()->create([
-                'location_id' => $validated['location_id'],
-                'external_id' => $externalId,
-                'xendit_invoice_id' => $invoice['id'] ?? null,
-                'status' => $invoice['status'] ?? 'PENDING',
-                'currency' => $payload['currency'],
-                'amount' => $payload['amount'],
-                'payer_email' => $payload['payer_email'],
-                'description' => $payload['description'],
-                'invoice_url' => $invoice['invoice_url'] ?? null,
-                'metadata' => $payload['metadata'],
-            ]);
-
             if (! $request->expectsJson()) {
                 if ((string) $request->input('source') === 'xendit-test-page') {
-                    return redirect()->route('xendit.test')->with('success', 'Invoice created successfully.');
+                    return redirect()->route('xendit.test')->with('success', 'Invoice created successfully on Xendit.');
                 }
 
                 $locationId = (string) $validated['location_id'];
@@ -81,11 +76,11 @@ class XenditPaymentController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'payment_id' => $payment->id,
-                'external_id' => $payment->external_id,
-                'xendit_invoice_id' => $payment->xendit_invoice_id,
-                'status' => $payment->status,
-                'invoice_url' => $payment->invoice_url,
+                'external_id' => $invoice['external_id'] ?? $externalId,
+                'xendit_invoice_id' => $invoice['id'] ?? null,
+                'status' => $invoice['status'] ?? null,
+                'invoice_url' => $invoice['invoice_url'] ?? null,
+                'xendit' => $invoice,
             ], 201);
         } catch (Throwable $exception) {
             if (! $request->expectsJson()) {
@@ -102,53 +97,83 @@ class XenditPaymentController extends Controller
         }
     }
 
-    public function simulateWebhook(Request $request): RedirectResponse
+    public function simulatedCheckout(?string $invoiceId = null): View
+    {
+        return view('xendit.checkout');
+    }
+
+    public function payWithCard(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'invoice_id' => ['nullable', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:20'],
+            'token_id' => ['required', 'string', 'max:255'],
+            'authentication_id' => ['required', 'string', 'max:255'],
+            'currency' => ['nullable', 'string', 'size:3'],
             'external_id' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', 'max:50'],
-            'invoice_url' => ['nullable', 'url', 'max:500'],
         ]);
 
-        $invoiceId = (string) ($validated['invoice_id'] ?? '');
-        $externalId = (string) ($validated['external_id'] ?? '');
+        try {
+            $chargePayload = [
+                'amount' => (float) $validated['amount'],
+                'token_id' => $validated['token_id'],
+                'authentication_id' => $validated['authentication_id'],
+                'currency' => strtoupper((string) ($validated['currency'] ?? 'PHP')),
+                'external_id' => $validated['external_id'] ?? Str::orderedUuid()->toString(),
+            ];
 
-        if ($invoiceId === '' && $externalId === '') {
-            return redirect()->route('xendit.test')->withErrors([
-                'simulate' => 'Provide invoice_id or external_id.',
-            ]);
+            $charge = $this->xenditService->chargeCard($chargePayload);
+
+            return response()->json($charge);
+        } catch (RequestException $exception) {
+            return response()->json([
+                'message' => json_encode($exception->response->json() ?? [
+                    'message' => $exception->getMessage(),
+                    'errors' => [],
+                ], JSON_THROW_ON_ERROR),
+            ], 422);
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 500);
         }
+    }
 
-        $query = XenditPayment::query();
-
-        if ($invoiceId !== '') {
-            $query->where('xendit_invoice_id', $invoiceId);
-        } else {
-            $query->where('external_id', $externalId);
-        }
-
-        $payment = $query->first();
-
-        if (! $payment) {
-            return redirect()->route('xendit.test')->withErrors([
-                'simulate' => 'Payment record not found.',
-            ]);
-        }
-
-        $payload = [
-            'id' => $invoiceId !== '' ? $invoiceId : $payment->xendit_invoice_id,
-            'external_id' => $externalId !== '' ? $externalId : $payment->external_id,
-            'status' => strtoupper($validated['status']),
-            'invoice_url' => $validated['invoice_url'] ?? $payment->invoice_url,
-        ];
-
-        $payment->update([
-            'status' => (string) $payload['status'],
-            'invoice_url' => (string) ($payload['invoice_url'] ?? $payment->invoice_url),
-            'last_webhook_payload' => $payload,
+    public function payViaEwallet(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'currency' => ['required', 'string', 'size:3'],
+            'checkout_method' => ['required', 'string', 'max:50'],
+            'channel_code' => ['required', 'string', 'max:50'],
+            'channel_properties' => ['required', 'array'],
+            'channel_properties.success_redirect_url' => ['required', 'url'],
+            'channel_properties.failure_redirect_url' => ['required', 'url'],
         ]);
 
-        return redirect()->route('xendit.test')->with('success', 'Webhook simulation applied.');
+        try {
+            $payload = [
+                'reference_id' => 'ewallet-'.Str::orderedUuid(),
+                'currency' => strtoupper((string) $validated['currency']),
+                'amount' => (float) $validated['amount'],
+                'checkout_method' => $validated['checkout_method'],
+                'channel_code' => $validated['channel_code'],
+                'channel_properties' => $validated['channel_properties'],
+            ];
+
+            $charge = $this->xenditService->chargeEwallet($payload);
+
+            return response()->json($charge);
+        } catch (RequestException $exception) {
+            return response()->json([
+                'message' => json_encode($exception->response->json() ?? [
+                    'message' => $exception->getMessage(),
+                    'errors' => [],
+                ], JSON_THROW_ON_ERROR),
+            ], 422);
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
     }
 }

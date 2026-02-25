@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\GhlInstallation;
-use App\Models\XenditPayment;
 use App\Services\GhlApiService;
 use App\Services\GhlOAuthService;
 use Illuminate\Http\RedirectResponse;
@@ -78,11 +77,6 @@ class GhlAppController extends Controller
         return view('ghl.dashboard', [
             'connected' => true,
             'installation' => $installation,
-            'payments' => XenditPayment::query()
-                ->where('location_id', $installation->location_id)
-                ->latest()
-                ->limit(10)
-                ->get(),
         ]);
     }
 }
