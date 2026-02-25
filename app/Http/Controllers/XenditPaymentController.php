@@ -154,6 +154,7 @@ class XenditPaymentController extends Controller
                 'amount' => (float) $validated['amount'],
                 'checkout_method' => $validated['checkout_method'],
                 'channel_code' => $validated['channel_code'],
+                "callback_url" => url('/xendit/webhook'),
                 'channel_properties' => [
                     'success_redirect_url' => url('/ewallet/success'),
                     'failure_redirect_url' => url('/ewallet/failed'),
