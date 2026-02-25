@@ -8,12 +8,20 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 use Throwable;
 
 class XenditPaymentController extends Controller
 {
     public function __construct(private readonly XenditService $xenditService)
     {
+    }
+
+    public function testPage(): View
+    {
+        return view('xendit.test', [
+            'payments' => XenditPayment::query()->latest()->limit(20)->get(),
+        ]);
     }
 
     public function createInvoice(Request $request): JsonResponse|RedirectResponse
@@ -62,6 +70,10 @@ class XenditPaymentController extends Controller
             ]);
 
             if (! $request->expectsJson()) {
+                if ((string) $request->input('source') === 'xendit-test-page') {
+                    return redirect()->route('xendit.test')->with('success', 'Invoice created successfully.');
+                }
+
                 $locationId = (string) $validated['location_id'];
 
                 return redirect()->route('ghl.dashboard', ['locationId' => $locationId]);
@@ -88,5 +100,55 @@ class XenditPaymentController extends Controller
                 'error' => $exception->getMessage(),
             ], 422);
         }
+    }
+
+    public function simulateWebhook(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'invoice_id' => ['nullable', 'string', 'max:255'],
+            'external_id' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', 'string', 'max:50'],
+            'invoice_url' => ['nullable', 'url', 'max:500'],
+        ]);
+
+        $invoiceId = (string) ($validated['invoice_id'] ?? '');
+        $externalId = (string) ($validated['external_id'] ?? '');
+
+        if ($invoiceId === '' && $externalId === '') {
+            return redirect()->route('xendit.test')->withErrors([
+                'simulate' => 'Provide invoice_id or external_id.',
+            ]);
+        }
+
+        $query = XenditPayment::query();
+
+        if ($invoiceId !== '') {
+            $query->where('xendit_invoice_id', $invoiceId);
+        } else {
+            $query->where('external_id', $externalId);
+        }
+
+        $payment = $query->first();
+
+        if (! $payment) {
+            return redirect()->route('xendit.test')->withErrors([
+                'simulate' => 'Payment record not found.',
+            ]);
+        }
+
+        $payload = [
+            'id' => $invoiceId !== '' ? $invoiceId : $payment->xendit_invoice_id,
+            'external_id' => $externalId !== '' ? $externalId : $payment->external_id,
+            'status' => strtoupper($validated['status']),
+            'invoice_url' => $validated['invoice_url'] ?? $payment->invoice_url,
+        ];
+
+        $payment->update([
+            'status' => (string) $payload['status'],
+            'invoice_url' => (string) ($payload['invoice_url'] ?? $payment->invoice_url),
+            'last_webhook_payload' => $payload,
+        ]);
+
+        return redirect()->route('xendit.test')->with('success', 'Webhook simulation applied.');
     }
 }

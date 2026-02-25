@@ -11,6 +11,14 @@ class XenditGatewayTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_xendit_test_page_is_accessible(): void
+    {
+        $response = $this->get('/xendit/test');
+
+        $response->assertOk();
+        $response->assertSee('Xendit Payment Test Page');
+    }
+
     public function test_can_create_xendit_invoice_and_store_payment_record(): void
     {
         config()->set('services.xendit.secret_key', 'xnd_development_key');
@@ -88,6 +96,32 @@ class XenditGatewayTest extends TestCase
 
         $this->assertSame('PAID', $payment->status);
         $this->assertSame('https://checkout.xendit.co/inv-123', $payment->invoice_url);
+        $this->assertIsArray($payment->last_webhook_payload);
+    }
+
+    public function test_simulate_webhook_updates_payment_status_from_test_page(): void
+    {
+        $payment = XenditPayment::query()->create([
+            'location_id' => 'loc-456',
+            'external_id' => 'ghl-loc-456-uuid',
+            'xendit_invoice_id' => 'inv-456',
+            'status' => 'PENDING',
+            'currency' => 'IDR',
+            'amount' => 200000,
+        ]);
+
+        $response = $this->post('/xendit/test/simulate-webhook', [
+            'invoice_id' => 'inv-456',
+            'status' => 'PAID',
+            'invoice_url' => 'https://checkout.xendit.co/inv-456',
+        ]);
+
+        $response->assertRedirect('/xendit/test');
+
+        $payment->refresh();
+
+        $this->assertSame('PAID', $payment->status);
+        $this->assertSame('https://checkout.xendit.co/inv-456', $payment->invoice_url);
         $this->assertIsArray($payment->last_webhook_payload);
     }
 }

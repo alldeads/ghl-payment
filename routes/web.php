@@ -23,6 +23,12 @@ Route::post('/xendit/invoices', [XenditPaymentController::class, 'createInvoice'
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('xendit.invoices.create');
 
+Route::get('/xendit/test', [XenditPaymentController::class, 'testPage'])
+    ->name('xendit.test');
+
+Route::post('/xendit/test/simulate-webhook', [XenditPaymentController::class, 'simulateWebhook'])
+    ->name('xendit.test.simulate-webhook');
+
 Route::post('/xendit/webhook', XenditWebhookController::class)
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('xendit.webhook');
