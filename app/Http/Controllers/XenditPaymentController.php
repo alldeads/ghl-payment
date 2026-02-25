@@ -102,6 +102,16 @@ class XenditPaymentController extends Controller
         return view('xendit.checkout');
     }
 
+    public function success(): View
+    {
+        return view('xendit.success');
+    }
+
+    public function failed(): View
+    {
+        return view('xendit.failed');
+    }
+
     public function payWithCard(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -156,8 +166,8 @@ class XenditPaymentController extends Controller
                 'channel_code' => $validated['channel_code'],
                 "callback_url" => url('/xendit/webhook'),
                 'channel_properties' => [
-                    'success_redirect_url' => url('/ewallet/success'),
-                    'failure_redirect_url' => url('/ewallet/failed'),
+                    'success_redirect_url' => route('xendit.success'),
+                    'failure_redirect_url' => route('xendit.failed'),
                 ],
             ];
 

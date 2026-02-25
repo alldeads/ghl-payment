@@ -29,6 +29,12 @@ Route::get('/xendit/test', [XenditPaymentController::class, 'simulatedCheckout']
 Route::get('/xendit/test/checkout/{invoiceId}', [XenditPaymentController::class, 'simulatedCheckout'])
     ->name('xendit.test.checkout');
 
+Route::get('/xendit/success', [XenditPaymentController::class, 'success'])
+    ->name('xendit.success');
+
+Route::get('/xendit/failed', [XenditPaymentController::class, 'failed'])
+    ->name('xendit.failed');
+
 Route::post('/pay-with-card', [XenditPaymentController::class, 'payWithCard'])
     ->name('xendit.pay-with-card');
 
