@@ -18,12 +18,12 @@ class XenditWebhookController extends Controller
     {
         $callbackToken = $request->header('X-CALLBACK-TOKEN');
 
-        if (! $this->xenditService->isValidCallbackToken($callbackToken)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Invalid callback token.',
-            ], 401);
-        }
+        // if (! $this->xenditService->isValidCallbackToken($callbackToken)) {
+        //     return response()->json([
+        //         'ok' => false,
+        //         'message' => 'Invalid callback token.',
+        //     ], 401);
+        // }
 
         $invoiceId = (string) Arr::get($request->all(), 'id', '');
         $externalId = (string) Arr::get($request->all(), 'external_id', '');
