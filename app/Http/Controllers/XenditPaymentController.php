@@ -102,6 +102,47 @@ class XenditPaymentController extends Controller
         return view('xendit.checkout');
     }
 
+    public function showPaymentLink(): View
+    {
+        return view('xendit.payment-link');
+    }
+
+    public function createPaymentLink(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'amount'      => ['required', 'numeric', 'min:1000'],
+            'payer_email' => ['required', 'email', 'max:255'],
+            'description' => ['nullable', 'string', 'max:255'],
+            'currency'    => ['nullable', 'string', 'size:3'],
+        ]);
+
+        $payload = [
+            'external_id'           => 'payment-link-'.Str::orderedUuid(),
+            'amount'                => (float) $validated['amount'],
+            'currency'              => strtoupper((string) ($validated['currency'] ?? 'PHP')),
+            'payer_email'           => $validated['payer_email'],
+            'description'           => $validated['description'] ?? 'One-time payment',
+            'success_redirect_url'  => route('xendit.success'),
+            'failure_redirect_url'  => route('xendit.failed'),
+            'invoice_duration'      => (int) config('services.xendit.invoice_duration_seconds', 86400),
+        ];
+
+        try {
+            $invoice = $this->xenditService->createInvoice($payload);
+            $invoiceUrl = $invoice['invoice_url'] ?? null;
+
+            if ($invoiceUrl) {
+                return redirect()->away($invoiceUrl);
+            }
+
+            return redirect()->back()->withErrors(['xendit' => 'Invoice created but no payment URL was returned.']);
+        } catch (Throwable $exception) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['xendit' => 'Failed to create payment link: '.$exception->getMessage()]);
+        }
+    }
+
     public function success(): View
     {
         return view('xendit.success');
@@ -152,28 +193,69 @@ class XenditPaymentController extends Controller
     {
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:1'],
-            'currency' => ['required', 'string', 'size:3'],
-            'checkout_method' => ['required', 'string', 'max:50'],
-            'channel_code' => ['required', 'string', 'max:50'],
+        ]);
+
+        return response()->json(
+            $this->xenditService->chargeEwallet([
+                'amount' => $validated['amount'],
+            ])
+        );
+    }
+
+    public function payViaQr(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'currency' => ['nullable', 'string', 'size:3'],
+            'type' => ['nullable', 'string', 'in:DYNAMIC,STATIC'],
+            'simulate' => ['nullable', 'boolean'],
         ]);
 
         try {
             $payload = [
-                'reference_id' => 'ewallet-'.Str::orderedUuid(),
-                'currency' => strtoupper((string) $validated['currency']),
+                'external_id' => 'qr-'.Str::orderedUuid(),
+                'type' => strtoupper((string) ($validated['type'] ?? 'DYNAMIC')),
+                'currency' => strtoupper((string) ($validated['currency'] ?? 'IDR')),
                 'amount' => (float) $validated['amount'],
-                'checkout_method' => $validated['checkout_method'],
-                'channel_code' => $validated['channel_code'],
-                "callback_url" => url('/xendit/webhook'),
-                'channel_properties' => [
-                    'success_redirect_url' => route('xendit.success'),
-                    'failure_redirect_url' => route('xendit.failed'),
-                ],
+                'callback_url' => config('services.xendit.callback_url', url('/xendit/webhook')),
             ];
 
-            $charge = $this->xenditService->chargeEwallet($payload);
+            $qrCode = $this->xenditService->createQrCode($payload);
 
-            return response()->json($charge);
+            if (($validated['simulate'] ?? false) === true && isset($qrCode['id']) && is_string($qrCode['id'])) {
+                $simulation = $this->xenditService->simulateQrPayment($qrCode['id']);
+
+                return response()->json([
+                    'qr_code' => $qrCode,
+                    'simulation' => $simulation,
+                ]);
+            }
+
+            return response()->json($qrCode);
+        } catch (RequestException $exception) {
+            return response()->json([
+                'message' => json_encode($exception->response->json() ?? [
+                    'message' => $exception->getMessage(),
+                    'errors' => [],
+                ], JSON_THROW_ON_ERROR),
+            ], 422);
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function simulateQrPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'qr_code_id' => ['required', 'string', 'max:255'],
+        ]);
+
+        try {
+            $simulation = $this->xenditService->simulateQrPayment($validated['qr_code_id']);
+
+            return response()->json($simulation);
         } catch (RequestException $exception) {
             return response()->json([
                 'message' => json_encode($exception->response->json() ?? [

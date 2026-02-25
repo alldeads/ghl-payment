@@ -104,6 +104,7 @@
         </p>
         <div class="cta-row">
             <a class="btn primary" href="{{ route('ghl.install') }}">Connect GHL App</a>
+            <a class="btn primary" href="{{ route('xendit.payment-link') }}">Create Payment Link</a>
             <a class="btn" href="{{ route('xendit.test') }}">Open Xendit Test Page</a>
             <a class="btn" href="{{ route('ghl.dashboard') }}">Open App Dashboard</a>
         </div>

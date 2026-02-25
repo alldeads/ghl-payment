@@ -2,11 +2,24 @@
 
 namespace App\Services;
 
+use App\Enums\CheckoutMethod;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class XenditService
 {
+    public const CURRENCY = 'PHP';
+
+    public const EWALLET = 'PH_GCASH';
+
+    public $callbackUrl = null;
+
+    public function __construct()
+    {
+        $this->callbackUrl = url('/xendit/webhook');
+    }
+
     private function client()
     {
         $baseUrl = rtrim((string) config('services.xendit.api_base_url'), '/');
@@ -75,6 +88,31 @@ class XenditService
      */
     public function chargeEwallet(array $payload): array
     {
+        $payload = [
+            'reference_id' => 'ewallet-' . Str::orderedUuid(),
+            'currency' => self::CURRENCY,
+            'request_amount' => (float) $payload['amount'],
+            'checkout_method' => CheckoutMethod::ONE_TIME_PAYMENT->value,
+            'channel_code' => self::EWALLET,
+            'callback_url' => $this->callbackUrl,
+            'channel_properties' => [
+                'success_redirect_url' => route('xendit.success'),
+                'failure_redirect_url' => route('xendit.failed'),
+            ],
+        ];
+
+        return $this->client()
+            ->post('/ewallets/charges', $payload)
+            ->throw()
+            ->json();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function createQrCode(array $payload): array
+    {
         $request = $this->client();
         $callbackUrl = trim((string) config('services.xendit.callback_url'));
 
@@ -85,7 +123,18 @@ class XenditService
         }
 
         return $request
-            ->post('/ewallets/charges', $payload)
+            ->post('/qr_codes', $payload)
+            ->throw()
+            ->json();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function simulateQrPayment(string $qrCodeId): array
+    {
+        return $this->client()
+            ->post('/qr_codes/'.urlencode($qrCodeId).'/payments/simulate')
             ->throw()
             ->json();
     }
