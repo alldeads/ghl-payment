@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Xendivel Cards Payment Template</title>
+        <title>Xendit Cards Payment Template</title>
 
         {{-- @vite('resources/css/checkout.css') --}}
         <style>
@@ -26,7 +26,7 @@
         <div class="container mt-8 mx-auto flex flex-col items-center gap-4">
             <header class="text-sm">
                 <h1 class="mb-2 text-xl font-bold">
-                    Xendivel Checkout Example
+                    Xendit Checkout Example
                 </h1>
                 <p class="flex gap-3">
                     <a
@@ -648,10 +648,6 @@
                         currency: 'PHP',
                         checkout_method: 'ONE_TIME_PAYMENT',
                         channel_code: 'PH_GCASH',
-                        channel_properties: {
-                            success_redirect_url: '{{ getenv('APP_URL') }}/ewallet/success',
-                            failure_redirect_url: '{{ getenv('APP_URL') }}/ewallet/failed',
-                        },
                     })
                     .then(response => {
                         // Upon successful request, you will be redirected to the eWallet's checkout url.

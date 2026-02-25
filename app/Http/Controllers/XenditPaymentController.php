@@ -145,9 +145,6 @@ class XenditPaymentController extends Controller
             'currency' => ['required', 'string', 'size:3'],
             'checkout_method' => ['required', 'string', 'max:50'],
             'channel_code' => ['required', 'string', 'max:50'],
-            'channel_properties' => ['required', 'array'],
-            'channel_properties.success_redirect_url' => ['required', 'url'],
-            'channel_properties.failure_redirect_url' => ['required', 'url'],
         ]);
 
         try {
@@ -157,7 +154,10 @@ class XenditPaymentController extends Controller
                 'amount' => (float) $validated['amount'],
                 'checkout_method' => $validated['checkout_method'],
                 'channel_code' => $validated['channel_code'],
-                'channel_properties' => $validated['channel_properties'],
+                'channel_properties' => [
+                    'success_redirect_url' => url('/ewallet/success'),
+                    'failure_redirect_url' => url('/ewallet/failed'),
+                ],
             ];
 
             $charge = $this->xenditService->chargeEwallet($payload);

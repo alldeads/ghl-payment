@@ -50,6 +50,7 @@ return [
         'secret_key' => env('XENDIT_SECRET_KEY'),
         'public_key' => env('XENDIT_PUBLIC_KEY'),
         'callback_token' => env('XENDIT_CALLBACK_TOKEN', env('XENDIT_WEBHOOK_VERIFICATION_TOKEN')),
+        'callback_url' => env('XENDIT_CALLBACK_URL', env('APP_URL').'/xendit/webhook'),
         'api_base_url' => env('XENDIT_API_BASE_URL', 'https://api.xendit.co'),
         'invoice_duration_seconds' => (int) env('XENDIT_INVOICE_DURATION_SECONDS', 86400),
         'success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', env('APP_URL').'/ghl/dashboard'),

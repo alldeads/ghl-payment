@@ -75,7 +75,16 @@ class XenditService
      */
     public function chargeEwallet(array $payload): array
     {
-        return $this->client()
+        $request = $this->client();
+        $callbackUrl = trim((string) config('services.xendit.callback_url'));
+
+        if ($callbackUrl !== '') {
+            $request = $request->withHeaders([
+                'with-callback-url' => $callbackUrl,
+            ]);
+        }
+
+        return $request
             ->post('/ewallets/charges', $payload)
             ->throw()
             ->json();
